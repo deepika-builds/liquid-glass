@@ -3,99 +3,289 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>liquid-glass demo</title>
+<title>liquid-glass — demo</title>
 <style>
+  :root {
+    --bg: #0a0a12;
+    --ink: #f5f5f7;
+    --ink-dim: rgba(245, 245, 247, 0.65);
+    --accent: #4d9fff;
+    --card-radius: 28px;
+    --hero-max: 720px;
+  }
   * { margin: 0; padding: 0; box-sizing: border-box; }
-  html, body { height: 100%; }
   body {
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-    background: #0a0a12; color: #f5f5f7; overflow: hidden;
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    overflow-x: hidden;
     -webkit-font-smoothing: antialiased;
   }
 
-  /* colorful backdrop so the refraction has something to bend */
-  .mesh { position: fixed; inset: 0; filter: blur(55px) saturate(1.6); }
-  .blob {
-    position: absolute; border-radius: 50%; opacity: 0.95;
-    width: max(55vmin, 380px); aspect-ratio: 1;
-    transform: translate(-50%, -50%);
+  /* ---- Background photo: in flow, defines the scrollable page height ---- */
+  .bg-photo {
+    display: block; position: relative; z-index: 0;
+    width: 100%; height: auto;
+    min-height: 230vh; object-fit: cover; object-position: top;
   }
-  .blob:nth-child(1) { left: 14%; top: 10%; background: radial-gradient(circle, #ff5e7e, transparent 70%); }
-  .blob:nth-child(2) { left: 88%; top: 24%; background: radial-gradient(circle, #4d9fff, transparent 70%); }
-  .blob:nth-child(3) { left: 26%; top: 86%; background: radial-gradient(circle, #9d5cff, transparent 70%); }
-  .blob:nth-child(4) { left: 80%; top: 72%; background: radial-gradient(circle, #2fd4a7, transparent 70%); }
-  .bg-type {
-    position: fixed; inset: 0; display: grid; place-items: center;
-    font-size: clamp(120px, 30vw, 420px); font-weight: 800;
-    color: rgba(255, 255, 255, 0.10); user-select: none; pointer-events: none;
+  /* soft viewport vignette so text and glass stay readable */
+  .bg-scrim {
+    position: fixed; inset: 0; z-index: 1; pointer-events: none;
+    background: linear-gradient(180deg,
+      rgba(10, 10, 18, 0.04) 0%,
+      rgba(10, 10, 18, 0.14) 55%,
+      rgba(10, 10, 18, 0.28) 100%);
   }
 
-  /* the glass material — see README for the recipe */
-  .glass {
-    position: fixed; left: 50%; top: 50%;
+  /* ---- Hero: overlays the first viewport of the photo ---- */
+  .hero {
+    position: absolute; top: 0; left: 0; right: 0; z-index: 2; height: 100vh;
+    display: flex; flex-direction: column; justify-content: center; align-items: center;
+    text-align: center; padding: 24px;
+  }
+  .hero h1 {
+    font-size: clamp(44px, 7vw, 84px); font-weight: 700; letter-spacing: -0.03em;
+    line-height: 1.04; max-width: var(--hero-max);
+    color: #fff; text-shadow: 0 2px 24px rgba(10, 10, 18, 0.45);
+  }
+  .hero .hint {
+    margin-top: 18px; font-size: clamp(15px, 2.2vw, 18px); font-weight: 500;
+    color: rgba(255, 255, 255, 0.85); text-shadow: 0 1px 12px rgba(10, 10, 18, 0.5);
+  }
+  .hero .cta {
+    margin-top: 28px; display: inline-block; padding: 14px 32px; border-radius: 999px;
+    background: var(--ink); color: #0a0a12; font-size: 16px; font-weight: 600;
+    text-decoration: none; transition: transform 0.2s ease, box-shadow 0.2s ease;
+  }
+  .hero .cta:hover { transform: scale(1.04); box-shadow: 0 8px 32px rgba(255,255,255,0.25); }
+
+  /* ---- Glass card ---- */
+  .glass-card {
+    position: fixed; left: 0; top: 0; z-index: 10;
     width: min(340px, calc(100vw - 32px));
-    transform: translate(-50%, -50%);
-    padding: 26px 24px;
-    border-radius: 28px;
+    padding: 20px 24px 24px;
+    border-radius: var(--card-radius);
     background: linear-gradient(180deg, rgba(14, 14, 22, 0.18), rgba(14, 14, 22, 0.32));
+    /* backdrop-filter is applied by liquid-glass.js */
     box-shadow:
       0 24px 60px rgba(0, 0, 0, 0.45),
       inset 0 1px 1px rgba(255, 255, 255, 0.5),
       inset 0 -8px 20px rgba(255, 255, 255, 0.06),
       inset 0 0 0 1px rgba(255, 255, 255, 0.13);
-    cursor: grab; touch-action: none; will-change: transform;
+    cursor: grab; touch-action: none;
+    will-change: transform;
   }
-  .glass:active { cursor: grabbing; }
-  .glass h1 { font-size: 22px; font-weight: 700; }
-  .glass p { margin-top: 8px; font-size: 14px; line-height: 1.5; color: rgba(245,245,247,0.65); }
-  .glass .row { margin-top: 18px; display: flex; gap: 10px; }
-  .glass input {
-    flex: 1; min-width: 0; padding: 12px 14px; border-radius: 13px;
-    border: 1px solid rgba(255,255,255,0.18); background: rgba(255,255,255,0.09);
-    color: inherit; font: 500 14px/1.2 inherit; outline: none; cursor: text;
+  .glass-card:active { cursor: grabbing; }
+  /* cursor-tracked glare */
+  .glass-card::after {
+    content: ""; position: absolute; inset: 0; border-radius: inherit;
+    background: radial-gradient(
+      160px circle at var(--gx, 25%) var(--gy, 15%),
+      rgba(255, 255, 255, 0.22), rgba(255, 255, 255, 0.04) 45%, transparent 70%
+    );
+    pointer-events: none;
   }
-  .glass input:focus { border-color: rgba(255,255,255,0.5); }
-  .glass button {
-    padding: 12px 18px; border: none; border-radius: 13px; cursor: pointer;
-    background: #f5f5f7; color: #0a0a12; font: 600 14px/1.2 inherit;
+
+  .card-grip {
+    width: 38px; height: 5px; border-radius: 3px;
+    background: rgba(255, 255, 255, 0.35);
+    margin: 0 auto 16px;
   }
+  .glass-card h2 {
+    font-size: 22px; font-weight: 700; letter-spacing: -0.01em;
+    text-shadow: 0 1px 6px rgba(0, 0, 0, 0.3);
+  }
+  .glass-card .card-sub {
+    margin-top: 6px; margin-bottom: 18px;
+    font-size: 14px; line-height: 1.45; color: var(--ink-dim);
+  }
+  .card-form input {
+    width: 100%; padding: 13px 16px;
+    border-radius: 14px; border: 1px solid rgba(255, 255, 255, 0.18);
+    background: rgba(255, 255, 255, 0.09);
+    color: var(--ink); font: 500 15px/1.2 inherit; font-family: inherit;
+    outline: none; cursor: text;
+    transition: border-color 0.15s ease, background 0.15s ease;
+  }
+  .card-form input::placeholder { color: rgba(245, 245, 247, 0.45); }
+  .card-form input:focus {
+    border-color: rgba(255, 255, 255, 0.5);
+    background: rgba(255, 255, 255, 0.13);
+  }
+  .card-form button {
+    width: 100%; margin-top: 10px; padding: 13px 16px;
+    border: none; border-radius: 14px; cursor: pointer;
+    background: var(--ink); color: #0a0a12;
+    font: 600 15px/1.2 inherit; font-family: inherit;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+  }
+  .card-form button:hover {
+    transform: scale(1.02);
+    box-shadow: 0 6px 24px rgba(255, 255, 255, 0.22);
+  }
+  .card-head {
+    display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  }
+  .card-badge {
+    font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.85); padding: 4px 10px; border-radius: 999px;
+    background: rgba(255, 255, 255, 0.12);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.28);
+  }
+  .card-divider {
+    height: 1px; margin: 18px -4px 0;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.22), transparent);
+  }
+  .card-switch {
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    margin-top: 14px; font-size: 14px; color: var(--ink-dim);
+    cursor: pointer; user-select: none;
+  }
+  .card-switch input { position: absolute; opacity: 0; pointer-events: none; }
+  .switch-track {
+    flex: none; width: 46px; height: 27px; border-radius: 999px;
+    background: rgba(255, 255, 255, 0.18);
+    box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.25);
+    transition: background 0.2s ease;
+    display: block; position: relative;
+  }
+  .switch-thumb {
+    position: absolute; top: 2.5px; left: 3px;
+    width: 22px; height: 22px; border-radius: 50%;
+    background: #fff; box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
+    transition: transform 0.22s cubic-bezier(0.3, 1.3, 0.4, 1);
+    display: block;
+  }
+  .card-switch input:checked + .switch-track { background: rgba(255, 255, 255, 0.55); }
+  .card-switch input:checked + .switch-track .switch-thumb { transform: translateX(18px); }
 </style>
 </head>
 <body>
-  <div class="mesh" aria-hidden="true"><div class="blob"></div><div class="blob"></div><div class="blob"></div><div class="blob"></div></div>
-  <div class="bg-type" aria-hidden="true">Aa</div>
+  <img class="bg-photo" src="meadow-tall.jpg" alt="">
+  <div class="bg-scrim" aria-hidden="true"></div>
 
-  <div class="glass" id="glass">
-    <h1>Liquid glass</h1>
-    <p>Drag this card around — the backdrop bends at the rim and stays crisp in the middle.</p>
-    <div class="row">
-      <input type="email" placeholder="you@example.com" aria-label="Email">
-      <button type="button">Join</button>
+  <main class="hero">
+    <h1>Liquid Glass</h1>
+    <p class="hint">Drag the card across the photo. Scroll to watch it bend the detail underneath.</p>
+    <a class="cta" href="https://github.com/deepika-builds/liquid-glass">Get the file</a>
+  </main>
+
+  <div class="glass-card" id="card" role="group" aria-label="Early access signup">
+    <div class="card-grip" aria-hidden="true"></div>
+    <div class="card-head">
+      <h2>Get early access</h2>
+      <span class="card-badge">Beta</span>
     </div>
+    <p class="card-sub">Be the first to build with Liquid Glass.</p>
+    <form class="card-form" onsubmit="return false">
+      <input type="email" name="email" placeholder="you@example.com" aria-label="Email address" autocomplete="email">
+      <button type="submit">Request invite</button>
+    </form>
+    <div class="card-divider" aria-hidden="true"></div>
+    <label class="card-switch">
+      <span>Send me product updates</span>
+      <input type="checkbox" checked>
+      <span class="switch-track" aria-hidden="true"><span class="switch-thumb"></span></span>
+    </label>
   </div>
 
   <script src="../liquid-glass.js"></script>
   <script>
-    const el = document.getElementById("glass");
-    liquidGlass(el);
+    // ---- Draggable card with spring physics ----
+    class GlassCard {
+      constructor(el) {
+        this.el = el;
+        this.measure();
+        const startCenterX = window.innerWidth > 900
+          ? window.innerWidth * 0.72   // float beside the headline on wide screens
+          : window.innerWidth / 2;
+        this.x = startCenterX - this.w / 2;
+        this.y = Math.max(16, window.innerHeight * 0.32 - this.h / 2);
+        this.tx = this.x; this.ty = this.y;
+        this.vx = 0; this.vy = 0;
+        this.dragging = false;
+        this.grabDX = 0; this.grabDY = 0;
+        this.stiffness = 0.12;
+        this.damping = 0.72;
 
-    // minimal drag (grab anywhere except the input/button)
-    let sx, sy, ox, oy, dragging = false;
-    el.addEventListener("pointerdown", (e) => {
-      if (e.target.closest("input, button")) return;
-      dragging = true;
-      sx = e.clientX; sy = e.clientY;
-      const r = el.getBoundingClientRect();
-      ox = r.left + r.width / 2; oy = r.top + r.height / 2;
-      try { el.setPointerCapture(e.pointerId); } catch (_) {}
-    });
-    el.addEventListener("pointermove", (e) => {
-      if (!dragging) return;
-      el.style.left = ox + (e.clientX - sx) + "px";
-      el.style.top = oy + (e.clientY - sy) + "px";
-    });
-    el.addEventListener("pointerup", () => { dragging = false; });
-    el.addEventListener("pointercancel", () => { dragging = false; });
+        el.addEventListener("pointerdown", (e) => this.onDown(e));
+        el.addEventListener("pointermove", (e) => this.onMove(e));
+        el.addEventListener("pointerup", (e) => this.onUp(e));
+        el.addEventListener("pointercancel", (e) => this.onUp(e));
+        window.addEventListener("resize", () => this.onResize());
+
+        this.clampTarget();
+        this.x = this.tx; this.y = this.ty;
+        this.render();
+        requestAnimationFrame(() => this.tick());
+      }
+
+      measure() {
+        this.w = this.el.offsetWidth;
+        this.h = this.el.offsetHeight;
+      }
+
+      onDown(e) {
+        // Interactive elements keep their own behavior; drag from anywhere else.
+        if (e.target.closest("input, button, a, label")) return;
+        this.dragging = true;
+        this.grabDX = e.clientX - this.tx;
+        this.grabDY = e.clientY - this.ty;
+        try { this.el.setPointerCapture(e.pointerId); } catch (_) { /* synthetic pointer */ }
+      }
+
+      onMove(e) {
+        const rect = this.el.getBoundingClientRect();
+        const gx = ((e.clientX - rect.left) / rect.width) * 100;
+        const gy = ((e.clientY - rect.top) / rect.height) * 100;
+        this.el.style.setProperty("--gx", gx.toFixed(1) + "%");
+        this.el.style.setProperty("--gy", gy.toFixed(1) + "%");
+        if (!this.dragging) return;
+        this.tx = e.clientX - this.grabDX;
+        this.ty = e.clientY - this.grabDY;
+        this.clampTarget();
+      }
+
+      onUp(e) {
+        this.dragging = false;
+        if (this.el.hasPointerCapture(e.pointerId)) {
+          this.el.releasePointerCapture(e.pointerId);
+        }
+      }
+
+      onResize() {
+        this.measure(); // map regeneration is handled by liquid-glass.js
+        this.clampTarget();
+      }
+
+      clampTarget() {
+        const m = 12;
+        this.tx = Math.min(Math.max(this.tx, m), window.innerWidth - this.w - m);
+        this.ty = Math.min(Math.max(this.ty, m), window.innerHeight - this.h - m);
+      }
+
+      tick() {
+        this.vx = (this.vx + (this.tx - this.x) * this.stiffness) * this.damping;
+        this.vy = (this.vy + (this.ty - this.y) * this.stiffness) * this.damping;
+        this.x += this.vx;
+        this.y += this.vy;
+        this.render();
+        requestAnimationFrame(() => this.tick());
+      }
+
+      render() {
+        // gentler squash than the lens — this is a solid widget, not a droplet
+        const speed = Math.hypot(this.vx, this.vy);
+        const squash = Math.min(speed / 120, 0.08);
+        const angle = Math.atan2(this.vy, this.vx);
+        this.el.style.transform =
+          `translate(${this.x}px, ${this.y}px) ` +
+          `rotate(${angle}rad) scale(${1 + squash}, ${1 - squash}) rotate(${-angle}rad)`;
+      }
+    }
+
+    window.glassCard = new GlassCard(document.getElementById("card"));
+    window.glassEffect = liquidGlass(document.getElementById("card"));
   </script>
 </body>
 </html>
